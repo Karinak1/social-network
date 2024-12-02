@@ -1,38 +1,45 @@
+import PostForm from '@/components/postForm';
+import UserForm from '@/components/userForm';
 import { db } from '@/lib/db';
 import { SignedIn, SignedOut } from '@clerk/nextjs';
 import { auth } from '@clerk/nextjs/server';
 import Link from 'next/link';
 
-export default async function PostPage() {
+export default async function PostsPage() {
   const { userId } = await auth();
-  const response = await db.query('SELECT * FROM posts');
-  const posts = response.rows;
-  async function handleSubmit(formData) {
-    'use server';
-    const content = formData.get('content');
 
-    db.query(`INSERT INTO posts(content,clerk_id) VALUES($1,$2)`, [
-      content,
-      userId,
-    ]);
-  }
+  const responsePosts = await db.query(`
+    SELECT
+      posts.id,
+      posts.content,
+      users.username,
+      users.id as user_id
+    FROM posts
+    JOIN users ON posts.clerk_id = users.clerk_id`);
+  const posts = responsePosts.rows;
+
+  const responseUser = await db.query(
+    `SELECT * FROM users WHERE clerk_id = '${userId}'`
+  );
+  const numUsers = responseUser.rowCount;
+
   return (
     <div>
       <h2>Posts</h2>
-      <SignedIn>
-        <form action={handleSubmit}>
-          <textarea name="content" placeholder="write your post"></textarea>
-          <button>submit</button>
-        </form>
-      </SignedIn>
+
+      <SignedIn>{numUsers === 1 ? <PostForm /> : <UserForm />}</SignedIn>
+
       <SignedOut>
-        <Link href="/sign-in">please sign in</Link>
+        <Link href="/sign-in">Please sign in to make a post</Link>
       </SignedOut>
-      <p>here we can show post if we can get them from db</p>
+
+      <p>Here we can show the posts if we get them from the db</p>
       {posts.map((post) => {
         return (
           <div key={post.id}>
-            <h3>the user says</h3>
+            <h3>
+              <Link href={`/user/${post.user_id}`}>{post.username}</Link> says
+            </h3>
             <p>{post.content}</p>
           </div>
         );
